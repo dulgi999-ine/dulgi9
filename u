@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <title>카카오 공유</title>
+  <!-- 카카오 SDK 불러오기 -->
+  <script src="https://t1.kakaocdn.net/kakao_js_sdk/2.7.2/kakao.min.js"></script>
+</head>
+<body>
+  <h2>카카오 공유 테스트</h2>
+  <button id="share">카카오톡 공유하기</button>
+
+  <script>
+    // 반드시 JavaScript 키를 사용하세요 (REST API 키, 네이티브 키 아님)
+    Kakao.init("15311b56d6aa920021c5c7d732735b34");
+
+    // 공유 버튼 클릭 이벤트
+    document.getElementById("share").onclick = function () {
+      Kakao.Share.sendCustom({
+        templateId: 135297 // 실제 발급받은 템플릿 ID
+      });
+    };
+  </script>
+</body>
+</html>
