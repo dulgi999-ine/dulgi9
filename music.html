@@ -1,0 +1,1436 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Mood · 감성 뮤직</title>
+<link href="https://fonts.googleapis.com/css2?family=Pretendard:wght@300;400;500;600&family=Playfair+Display:ital,wght@1,500&display=swap" rel="stylesheet">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  :root {
+    --bg-1: #1a0b2e;
+    --bg-2: #2d1b4e;
+    --accent: #ff7eb6;
+    --accent-2: #8b5cf6;
+    --text: #f5f3ff;
+    --text-dim: rgba(245, 243, 255, 0.6);
+    --glass: rgba(255, 255, 255, 0.08);
+    --glass-border: rgba(255, 255, 255, 0.15);
+  }
+  html, body {
+    height: 100%;
+    font-family: 'Pretendard', sans-serif;
+    color: var(--text);
+    overflow: hidden;
+    background: #0a0514;
+  }
+  #bgLayer {
+    position: fixed; inset: 0;
+    background: radial-gradient(circle at 30% 20%, var(--bg-2), var(--bg-1) 70%);
+    transition: background 1.5s ease;
+    z-index: 0;
+  }
+  #bgBlur {
+    position: fixed; inset: -10%;
+    background-size: cover;
+    background-position: center;
+    filter: blur(80px) saturate(1.3) brightness(0.5);
+    opacity: 0.55;
+    transition: background-image 1s ease, opacity 1s ease, filter 1.5s ease;
+    z-index: 1;
+  }
+  /* 분위기 이펙트 캔버스 */
+  #fxCanvas {
+    position: fixed; inset: 0;
+    z-index: 2;
+    pointer-events: none;
+    mix-blend-mode: screen;
+    opacity: 0.85;
+  }
+  /* 레트로 오버레이 */
+  .retro-overlay {
+    position: fixed; inset: 0;
+    z-index: 3;
+    pointer-events: none;
+    background: repeating-linear-gradient(
+      0deg,
+      rgba(0,0,0,0.15) 0px,
+      rgba(0,0,0,0.15) 1px,
+      transparent 1px,
+      transparent 3px
+    );
+    opacity: 0;
+    transition: opacity 1s ease;
+    mix-blend-mode: multiply;
+  }
+  .retro-overlay.active { opacity: 0.6; }
+  .vignette {
+    position: fixed; inset: 0;
+    z-index: 3;
+    pointer-events: none;
+    background: radial-gradient(ellipse at center, transparent 40%, rgba(0,0,0,0.7) 100%);
+    opacity: 0.6;
+  }
+
+  .app {
+    position: relative;
+    z-index: 10;
+    height: 100vh;
+    display: grid;
+    grid-template-rows: auto 1fr auto;
+    padding: 24px;
+    gap: 20px;
+  }
+  header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 16px;
+  }
+  .logo {
+    font-family: 'Playfair Display', serif;
+    font-style: italic;
+    font-size: 28px;
+    font-weight: 500;
+    background: linear-gradient(135deg, var(--accent), var(--accent-2));
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    letter-spacing: 1px;
+  }
+  .logo span { font-size: 14px; opacity: 0.7; margin-left: 8px; font-style: normal; font-family: 'Pretendard'; }
+  .search-bar { flex: 1; max-width: 500px; display: flex; gap: 8px; }
+  .search-bar input {
+    flex: 1;
+    padding: 12px 18px;
+    background: var(--glass);
+    border: 1px solid var(--glass-border);
+    border-radius: 999px;
+    color: var(--text);
+    font-size: 14px;
+    outline: none;
+    transition: all 0.3s;
+  }
+  .search-bar input:focus {
+    background: rgba(255,255,255,0.12);
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px rgba(255,126,182,0.15);
+  }
+  .search-bar input::placeholder { color: var(--text-dim); }
+  .btn {
+    padding: 12px 20px;
+    background: linear-gradient(135deg, var(--accent), var(--accent-2));
+    border: none;
+    border-radius: 999px;
+    color: white;
+    font-weight: 500;
+    font-size: 14px;
+    cursor: pointer;
+    transition: transform 0.2s, box-shadow 0.2s;
+  }
+  .btn:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(139,92,246,0.4); }
+  .btn-ghost {
+    background: var(--glass);
+    border: 1px solid var(--glass-border);
+  }
+  .btn-ghost:hover { background: rgba(255,255,255,0.15); box-shadow: none; }
+
+  main {
+    display: grid;
+    grid-template-columns: 1fr 1fr 380px;
+    gap: 20px;
+    min-height: 0;
+  }
+
+  /* 앨범아트 */
+  .now-playing {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    gap: 20px;
+  }
+  .album-art {
+    width: min(360px, 50vh);
+    aspect-ratio: 1;
+    border-radius: 24px;
+    background: linear-gradient(135deg, rgba(255,126,182,0.2), rgba(139,92,246,0.2));
+    box-shadow: 0 30px 80px rgba(0,0,0,0.5), inset 0 0 0 1px var(--glass-border);
+    overflow: hidden;
+    position: relative;
+    transition: transform 0.6s cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 1s ease;
+  }
+  .album-art.playing { animation: breathe 4s ease-in-out infinite; }
+  @keyframes breathe {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.02); }
+  }
+  .album-art img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .album-art .placeholder {
+    width: 100%; height: 100%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 80px; opacity: 0.4;
+  }
+  .track-info h1 {
+    font-size: 24px; font-weight: 500; margin-bottom: 6px; letter-spacing: -0.5px;
+  }
+  .track-info p { color: var(--text-dim); font-size: 14px; font-weight: 300; }
+
+  /* 분위기 선택 */
+  .mood-picker {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    justify-content: center;
+    margin-top: 4px;
+  }
+  .mood-chip {
+    padding: 6px 12px;
+    background: var(--glass);
+    border: 1px solid var(--glass-border);
+    border-radius: 999px;
+    font-size: 12px;
+    color: var(--text-dim);
+    cursor: pointer;
+    transition: all 0.3s;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .mood-chip:hover { color: var(--text); background: rgba(255,255,255,0.12); }
+  .mood-chip.active {
+    background: linear-gradient(135deg, var(--accent), var(--accent-2));
+    color: white;
+    border-color: transparent;
+    box-shadow: 0 4px 16px rgba(139,92,246,0.4);
+  }
+
+  /* 가사 패널 */
+  .lyrics-panel {
+    background: var(--glass);
+    border: 1px solid var(--glass-border);
+    border-radius: 24px;
+    padding: 24px;
+    backdrop-filter: blur(20px);
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    position: relative;
+    overflow: hidden;
+  }
+  .lyrics-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 16px;
+  }
+  .lyrics-header h2 {
+    font-size: 14px;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    color: var(--text-dim);
+  }
+  .lyrics-status {
+    font-size: 11px;
+    color: var(--text-dim);
+    padding: 4px 10px;
+    background: rgba(255,255,255,0.05);
+    border-radius: 999px;
+  }
+  .lyrics-scroll {
+    flex: 1;
+    overflow-y: auto;
+    scroll-behavior: smooth;
+    padding: 20px 8px;
+    mask-image: linear-gradient(to bottom, transparent, black 15%, black 85%, transparent);
+    -webkit-mask-image: linear-gradient(to bottom, transparent, black 15%, black 85%, transparent);
+  }
+  .lyrics-scroll::-webkit-scrollbar { width: 4px; }
+  .lyrics-scroll::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); border-radius: 2px; }
+  .lyric-line {
+    padding: 10px 14px;
+    font-size: 18px;
+    font-weight: 300;
+    color: var(--text-dim);
+    line-height: 1.5;
+    transition: all 0.4s ease;
+    border-radius: 8px;
+    cursor: pointer;
+  }
+  .lyric-line:hover { color: var(--text); background: rgba(255,255,255,0.05); }
+  .lyric-line.active {
+    color: var(--text);
+    font-weight: 500;
+    font-size: 22px;
+    background: linear-gradient(135deg, rgba(255,126,182,0.15), rgba(139,92,246,0.15));
+    transform: scale(1.02);
+    text-shadow: 0 0 20px rgba(255,126,182,0.4);
+  }
+  .lyric-line.past { color: rgba(245,243,255,0.35); }
+  .lyrics-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    color: var(--text-dim);
+    text-align: center;
+    font-size: 13px;
+    line-height: 1.7;
+    padding: 20px;
+  }
+  .lyrics-empty .icon { font-size: 48px; margin-bottom: 12px; opacity: 0.5; }
+
+  /* 사이드바 (재생목록) */
+  .sidebar {
+    background: var(--glass);
+    border: 1px solid var(--glass-border);
+    border-radius: 24px;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    backdrop-filter: blur(20px);
+  }
+  .sidebar h2 {
+    font-size: 14px;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    color: var(--text-dim);
+    margin-bottom: 16px;
+  }
+  .playlist {
+    flex: 1;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding-right: 4px;
+  }
+  .playlist::-webkit-scrollbar { width: 6px; }
+  .playlist::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); border-radius: 3px; }
+  .track-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px;
+    border-radius: 12px;
+    cursor: pointer;
+    transition: background 0.2s;
+  }
+  .track-item:hover { background: rgba(255,255,255,0.08); }
+  .track-item.active {
+    background: linear-gradient(135deg, rgba(255,126,182,0.2), rgba(139,92,246,0.2));
+    border: 1px solid rgba(255,255,255,0.1);
+  }
+  .track-item img {
+    width: 48px; height: 48px;
+    border-radius: 8px;
+    object-fit: cover;
+    flex-shrink: 0;
+  }
+  .track-item .meta { flex: 1; min-width: 0; }
+  .track-item .title {
+    font-size: 14px; font-weight: 500;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .track-item .artist {
+    font-size: 12px; color: var(--text-dim);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .track-item .mood-dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    flex-shrink: 0;
+  }
+  .track-item .remove {
+    opacity: 0;
+    background: none; border: none;
+    color: var(--text-dim);
+    cursor: pointer;
+    padding: 4px 8px;
+    border-radius: 6px;
+    transition: all 0.2s;
+  }
+  .track-item:hover .remove { opacity: 1; }
+  .track-item .remove:hover { color: var(--accent); background: rgba(255,255,255,0.1); }
+  .empty-state {
+    text-align: center;
+    padding: 40px 20px;
+    color: var(--text-dim);
+    font-size: 13px;
+    line-height: 1.6;
+  }
+
+  /* 플레이어 바 */
+  .player-bar {
+    background: var(--glass);
+    border: 1px solid var(--glass-border);
+    border-radius: 20px;
+    padding: 16px 24px;
+    backdrop-filter: blur(20px);
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .progress-wrap {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-size: 12px;
+    color: var(--text-dim);
+    font-variant-numeric: tabular-nums;
+  }
+  .progress-bar {
+    flex: 1;
+    height: 4px;
+    background: rgba(255,255,255,0.1);
+    border-radius: 2px;
+    cursor: pointer;
+    position: relative;
+    overflow: hidden;
+  }
+  .progress-bar:hover { height: 6px; }
+  .progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--accent), var(--accent-2));
+    width: 0%;
+    border-radius: 2px;
+    transition: width 0.1s linear;
+    position: relative;
+  }
+  .progress-fill::after {
+    content: '';
+    position: absolute;
+    right: -6px; top: 50%;
+    transform: translateY(-50%);
+    width: 12px; height: 12px;
+    background: white;
+    border-radius: 50%;
+    opacity: 0;
+    transition: opacity 0.2s;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+  }
+  .progress-bar:hover .progress-fill::after { opacity: 1; }
+  .controls {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+  }
+  .control-group { display: flex; align-items: center; gap: 8px; }
+  .ctrl-btn {
+    background: none; border: none;
+    color: var(--text);
+    width: 40px; height: 40px;
+    border-radius: 50%;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+    font-size: 18px;
+  }
+  .ctrl-btn:hover { background: rgba(255,255,255,0.1); transform: scale(1.1); }
+  .ctrl-btn.active { color: var(--accent); }
+  .play-btn {
+    width: 56px; height: 56px;
+    background: linear-gradient(135deg, var(--accent), var(--accent-2));
+    font-size: 22px;
+    box-shadow: 0 8px 24px rgba(139,92,246,0.4);
+  }
+  .play-btn:hover { transform: scale(1.08); box-shadow: 0 12px 32px rgba(139,92,246,0.5); }
+  .volume { display: flex; align-items: center; gap: 8px; width: 140px; }
+  .volume input[type=range] {
+    flex: 1;
+    -webkit-appearance: none;
+    height: 4px;
+    background: rgba(255,255,255,0.15);
+    border-radius: 2px;
+    outline: none;
+  }
+  .volume input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 12px; height: 12px;
+    background: white;
+    border-radius: 50%;
+    cursor: pointer;
+  }
+
+  /* 설정 모달 */
+  .settings-toggle {
+    background: none; border: none;
+    color: var(--text-dim);
+    cursor: pointer;
+    font-size: 20px;
+    padding: 8px;
+    border-radius: 50%;
+    transition: all 0.2s;
+  }
+  .settings-toggle:hover { color: var(--text); background: var(--glass); }
+  .modal {
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.7);
+    backdrop-filter: blur(8px);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 100;
+  }
+  .modal.show { display: flex; }
+  .modal-content {
+    background: linear-gradient(135deg, #2d1b4e, #1a0b2e);
+    border: 1px solid var(--glass-border);
+    border-radius: 24px;
+    padding: 32px;
+    max-width: 480px;
+    width: 90%;
+  }
+  .modal-content h3 { font-size: 20px; margin-bottom: 8px; }
+  .modal-content p {
+    color: var(--text-dim);
+    font-size: 13px;
+    line-height: 1.6;
+    margin-bottom: 20px;
+  }
+  .modal-content input {
+    width: 100%;
+    padding: 12px 16px;
+    background: rgba(0,0,0,0.3);
+    border: 1px solid var(--glass-border);
+    border-radius: 12px;
+    color: var(--text);
+    font-size: 14px;
+    margin-bottom: 16px;
+    outline: none;
+  }
+  .modal-content input:focus { border-color: var(--accent); }
+  .modal-actions { display: flex; gap: 8px; justify-content: flex-end; }
+
+  /* 반응형 */
+  @media (max-width: 1200px) {
+    main { grid-template-columns: 1fr 1fr; grid-template-rows: auto auto; }
+    .sidebar { grid-column: 1 / -1; max-height: 220px; }
+  }
+  @media (max-width: 768px) {
+    main { grid-template-columns: 1fr; }
+    .album-art { width: min(240px, 40vh); }
+    .lyrics-panel { max-height: 280px; }
+    .sidebar { max-height: 200px; }
+    .search-bar { max-width: none; }
+    header { flex-wrap: wrap; }
+    .logo span { display: none; }
+    .lyric-line { font-size: 16px; }
+    .lyric-line.active { font-size: 18px; }
+  }
+  @media (max-width: 500px) {
+    .app { padding: 16px; gap: 12px; }
+    .volume { display: none; }
+    .controls { justify-content: center; }
+  }
+</style>
+</head>
+<body>
+<div id="bgLayer"></div>
+<div id="bgBlur"></div>
+<canvas id="fxCanvas"></canvas>
+<div class="retro-overlay" id="retroOverlay"></div>
+<div class="vignette"></div>
+
+<div class="app">
+  <header>
+    <div class="logo">Mood <span>· 감성 뮤직</span></div>
+    <div class="search-bar">
+      <input id="searchInput" type="text" placeholder="YouTube URL 또는 검색어 입력..." />
+      <button class="btn" id="searchBtn">재생</button>
+      <button class="settings-toggle" id="settingsBtn" title="API 설정">⚙</button>
+    </div>
+  </header>
+
+  <main>
+    <section class="now-playing">
+      <div class="album-art" id="albumArt">
+        <div class="placeholder">♪</div>
+      </div>
+      <div class="track-info">
+        <h1 id="trackTitle">지금, 당신의 순간</h1>
+        <p id="trackArtist">YouTube 링크를 입력해 음악을 시작하세요</p>
+      </div>
+      <div class="mood-picker" id="moodPicker">
+        <div class="mood-chip active" data-mood="auto">🧠 자동</div>
+        <div class="mood-chip" data-mood="calm">🌿 차분</div>
+        <div class="mood-chip" data-mood="energetic">⚡ 에너지</div>
+        <div class="mood-chip" data-mood="sad">🌧️ 슬픔</div>
+        <div class="mood-chip" data-mood="romantic">💗 로맨틱</div>
+        <div class="mood-chip" data-mood="dreamy">✨ 몽환</div>
+        <div class="mood-chip" data-mood="retro">📼 레트로</div>
+      </div>
+    </section>
+
+    <section class="lyrics-panel">
+      <div class="lyrics-header">
+        <h2>가사</h2>
+        <span class="lyrics-status" id="lyricsStatus">대기 중</span>
+      </div>
+      <div class="lyrics-scroll" id="lyricsScroll">
+        <div class="lyrics-empty">
+          <div class="icon">🎵</div>
+          음악을 재생하면<br/>가사가 여기에 나타납니다
+        </div>
+      </div>
+    </section>
+
+    <aside class="sidebar">
+      <h2>재생목록</h2>
+      <div class="playlist" id="playlist">
+        <div class="empty-state">
+          아직 곡이 없습니다.<br/>
+          위에서 YouTube 링크를 입력하거나<br/>
+          검색어로 찾아보세요 ✨
+        </div>
+      </div>
+    </aside>
+  </main>
+
+  <div class="player-bar">
+    <div class="progress-wrap">
+      <span id="currentTime">0:00</span>
+      <div class="progress-bar" id="progressBar">
+        <div class="progress-fill" id="progressFill"></div>
+      </div>
+      <span id="duration">0:00</span>
+    </div>
+    <div class="controls">
+      <div class="control-group">
+        <button class="ctrl-btn" id="shuffleBtn" title="셔플">⇄</button>
+        <button class="ctrl-btn" id="repeatBtn" title="반복">↻</button>
+      </div>
+      <div class="control-group">
+        <button class="ctrl-btn" id="prevBtn" title="이전">⏮</button>
+        <button class="ctrl-btn play-btn" id="playBtn" title="재생">▶</button>
+        <button class="ctrl-btn" id="nextBtn" title="다음">⏭</button>
+      </div>
+      <div class="volume">
+        <span>🔊</span>
+        <input type="range" id="volume" min="0" max="100" value="70" />
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="player" style="position:fixed; left:-9999px; width:1px; height:1px;"></div>
+
+<div class="modal" id="settingsModal">
+  <div class="modal-content">
+    <h3>YouTube Data API 설정</h3>
+    <p>
+      검색 기능을 사용하려면 YouTube Data API v3 키가 필요합니다.<br/>
+      <a href="https://console.cloud.google.com/" target="_blank" style="color:var(--accent)">Google Cloud Console</a>에서 발급받아 입력하세요.<br/>
+      키 없이도 YouTube URL로 바로 재생할 수 있습니다.
+    </p>
+    <input id="apiKeyInput" type="text" placeholder="AIza..." />
+    <div class="modal-actions">
+      <button class="btn btn-ghost" id="closeModal">취소</button>
+      <button class="btn" id="saveKey">저장</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ========== 상태 ========== */
+const state = {
+  playlist: JSON.parse(localStorage.getItem('mood_playlist') || '[]'),
+  currentIndex: -1,
+  isPlaying: false,
+  shuffle: false,
+  repeat: 'off',
+  apiKey: localStorage.getItem('mood_api_key') || '',
+  player: null,
+  playerReady: false,
+  progressTimer: null,
+  currentMood: 'auto',
+  detectedMood: 'calm',
+  lyrics: [],          // [{time, text}]
+  currentLyricIdx: -1,
+  beatIntensity: 0,    // 0~1
+  lastProgress: 0,
+};
+
+/* ========== 분위기 정의 ========== */
+const MOODS = {
+  calm: {
+    name: '차분',
+    color1: '#6dd5ed', color2: '#2193b0',
+    bgGrad: 'radial-gradient(circle at 30% 20%, #1e3c5a, #0a1929 70%)',
+    filter: 'blur(80px) saturate(1.2) brightness(0.5) hue-rotate(0deg)',
+  },
+  energetic: {
+    name: '에너지',
+    color1: '#ff006e', color2: '#ffbe0b',
+    bgGrad: 'radial-gradient(circle at 50% 30%, #5a0a2e, #1a0514 70%)',
+    filter: 'blur(70px) saturate(1.8) brightness(0.6) contrast(1.1)',
+  },
+  sad: {
+    name: '슬픔',
+    color1: '#4b6cb7', color2: '#182848',
+    bgGrad: 'radial-gradient(circle at 40% 30%, #1a2847, #050a18 70%)',
+    filter: 'blur(90px) saturate(0.8) brightness(0.4)',
+  },
+  romantic: {
+    name: '로맨틱',
+    color1: '#ff7eb6', color2: '#ff758c',
+    bgGrad: 'radial-gradient(circle at 30% 20%, #4a1a3a, #1a0514 70%)',
+    filter: 'blur(80px) saturate(1.4) brightness(0.55)',
+  },
+  dreamy: {
+    name: '몽환',
+    color1: '#c471f5', color2: '#fa71cd',
+    bgGrad: 'radial-gradient(circle at 50% 20%, #3a1e5c, #120520 70%)',
+    filter: 'blur(100px) saturate(1.5) brightness(0.5)',
+  },
+  retro: {
+    name: '레트로',
+    color1: '#f953c6', color2: '#b91d73',
+    bgGrad: 'radial-gradient(circle at 30% 30%, #4a154b, #0a0514 70%)',
+    filter: 'blur(70px) saturate(1.6) brightness(0.5) contrast(1.2)',
+  },
+};
+
+/* ========== 분위기 감지 ========== */
+function detectMood(title, artist) {
+  const text = ((title || '') + ' ' + (artist || '')).toLowerCase();
+  const rules = [
+    { mood: 'energetic', kw: ['remix', 'edm', 'dance', 'hiphop', 'hip-hop', 'rap', 'rock', 'dance', 'upbeat', 'party', 'disco', 'techno', 'house', 'trap'] },
+    { mood: 'sad', kw: ['이별', 'slowed', 'sad', 'cry', 'tear', 'breakup', 'alone', '혼자', 'slowed + reverb', 'slowed+reverb'] },
+    { mood: 'romantic', kw: ['love', 'romantic', 'valentine', '달콤', '달빛', '사랑', 'kiss', 'romance'] },
+    { mood: 'dreamy', kw: ['lofi', 'lo-fi', 'chill', 'ambient', 'dream', 'reverb', 'ethereal', '재즈', 'jazz', 'bossa'] },
+    { mood: 'retro', kw: ['80s', '90s', 'retro', 'synthwave', 'city pop', '시티팝', '신스', 'vintage', 'disco'] },
+    { mood: 'calm', kw: ['piano', 'acoustic', 'ballad', '발라드', '피아노', '어쿠스틱', 'guitar', 'lullaby', 'meditation'] },
+  ];
+  for (const r of rules) {
+    for (const k of r.kw) {
+      if (text.includes(k)) return r.mood;
+    }
+  }
+  return 'calm';
+}
+
+function getActiveMood() {
+  return state.currentMood === 'auto' ? state.detectedMood : state.currentMood;
+}
+
+/* ========== YouTube IFrame API ========== */
+const tag = document.createElement('script');
+tag.src = 'https://www.youtube.com/iframe_api';
+document.head.appendChild(tag);
+
+function onYouTubeIframeAPIReady() {
+  state.player = new YT.Player('player', {
+    height: '1', width: '1',
+    playerVars: { autoplay: 0, controls: 0, disablekb: 1 },
+    events: {
+      onReady: () => {
+        state.playerReady = true;
+        state.player.setVolume(70);
+      },
+      onStateChange: onPlayerStateChange,
+    },
+  });
+}
+window.onYouTubeIframeAPIReady = onYouTubeIframeAPIReady;
+
+function onPlayerStateChange(e) {
+  if (e.data === YT.PlayerState.ENDED) {
+    handleTrackEnd();
+  } else if (e.data === YT.PlayerState.PLAYING) {
+    state.isPlaying = true;
+    updatePlayButton();
+    startProgressTimer();
+    document.getElementById('albumArt').classList.add('playing');
+  } else if (e.data === YT.PlayerState.PAUSED) {
+    state.isPlaying = false;
+    updatePlayButton();
+    stopProgressTimer();
+    document.getElementById('albumArt').classList.remove('playing');
+  }
+}
+
+/* ========== 유틸 ========== */
+function extractVideoId(input) {
+  input = input.trim();
+  if (/^[a-zA-Z0-9_-]{11}$/.test(input)) return input;
+  const patterns = [
+    /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/|youtube\.com\/shorts\/)([a-zA-Z0-9_-]{11})/,
+  ];
+  for (const p of patterns) {
+    const m = input.match(p);
+    if (m) return m[1];
+  }
+  return null;
+}
+
+function formatTime(sec) {
+  if (!sec || isNaN(sec)) return '0:00';
+  sec = Math.floor(sec);
+  const m = Math.floor(sec / 60);
+  const s = sec % 60;
+  return `${m}:${s.toString().padStart(2, '0')}`;
+}
+
+function savePlaylist() {
+  localStorage.setItem('mood_playlist', JSON.stringify(state.playlist));
+}
+
+function escapeHtml(s) {
+  return (s || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+/* ========== UI 업데이트 ========== */
+function renderPlaylist() {
+  const el = document.getElementById('playlist');
+  if (state.playlist.length === 0) {
+    el.innerHTML = `<div class="empty-state">아직 곡이 없습니다.<br/>위에서 YouTube 링크를 입력하거나<br/>검색어로 찾아보세요 ✨</div>`;
+    return;
+  }
+  el.innerHTML = state.playlist.map((t, i) => {
+    const m = t.mood || 'calm';
+    const mc = MOODS[m]?.color1 || '#888';
+    return `
+    <div class="track-item ${i === state.currentIndex ? 'active' : ''}" data-index="${i}">
+      <img src="${t.thumb}" alt="" onerror="this.style.display='none'"/>
+      <div class="meta">
+        <div class="title">${escapeHtml(t.title)}</div>
+        <div class="artist">${escapeHtml(t.artist || 'YouTube')}</div>
+      </div>
+      <div class="mood-dot" style="background:${mc}; box-shadow:0 0 8px ${mc}" title="${MOODS[m]?.name || m}"></div>
+      <button class="remove" data-remove="${i}" title="삭제">✕</button>
+    </div>`;
+  }).join('');
+  el.querySelectorAll('.track-item').forEach(item => {
+    item.addEventListener('click', (e) => {
+      if (e.target.dataset.remove) return;
+      playIndex(parseInt(item.dataset.index));
+    });
+  });
+  el.querySelectorAll('.remove').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      removeTrack(parseInt(btn.dataset.remove));
+    });
+  });
+}
+
+function updateNowPlaying(track) {
+  if (!track) return;
+  document.getElementById('trackTitle').textContent = track.title;
+  document.getElementById('trackArtist').textContent = track.artist || 'YouTube';
+  const art = document.getElementById('albumArt');
+  art.innerHTML = `<img src="${track.thumb}" alt="" onerror="this.parentElement.innerHTML='<div class=placeholder>♪</div>'"/>`;
+  document.getElementById('bgBlur').style.backgroundImage = `url(${track.thumb})`;
+  document.title = `${track.title} · Mood`;
+
+  // 분위기 감지
+  state.detectedMood = detectMood(track.title, track.artist);
+  applyMood(getActiveMood());
+}
+
+function applyMood(mood) {
+  const m = MOODS[mood] || MOODS.calm;
+  document.getElementById('bgLayer').style.background = m.bgGrad;
+  document.getElementById('bgBlur').style.filter = m.filter;
+  document.documentElement.style.setProperty('--accent', m.color1);
+  document.documentElement.style.setProperty('--accent-2', m.color2);
+  // 레트로 오버레이
+  document.getElementById('retroOverlay').classList.toggle('active', mood === 'retro');
+  // 칩 상태
+  document.querySelectorAll('.mood-chip').forEach(c => {
+    c.classList.toggle('active', c.dataset.mood === state.currentMood);
+  });
+  // 이펙터 전환
+  fxSwitchMood(mood);
+}
+
+function updatePlayButton() {
+  document.getElementById('playBtn').textContent = state.isPlaying ? '⏸' : '▶';
+}
+
+/* ========== 재생 제어 ========== */
+function playTrack(track, index) {
+  if (!state.playerReady) {
+    setTimeout(() => playTrack(track, index), 300);
+    return;
+  }
+  state.currentIndex = index;
+  state.player.loadVideoById(track.videoId);
+  updateNowPlaying(track);
+  renderPlaylist();
+  loadLyrics(track);
+}
+
+function playIndex(i) {
+  if (i < 0 || i >= state.playlist.length) return;
+  playTrack(state.playlist[i], i);
+}
+
+function togglePlay() {
+  if (!state.playerReady || state.currentIndex < 0) return;
+  if (state.isPlaying) state.player.pauseVideo();
+  else state.player.playVideo();
+}
+
+function nextTrack() {
+  if (state.playlist.length === 0) return;
+  let next;
+  if (state.shuffle) next = Math.floor(Math.random() * state.playlist.length);
+  else next = (state.currentIndex + 1) % state.playlist.length;
+  playIndex(next);
+}
+
+function prevTrack() {
+  if (state.playlist.length === 0) return;
+  if (state.player.getCurrentTime && state.player.getCurrentTime() > 3) {
+    state.player.seekTo(0);
+    return;
+  }
+  const prev = (state.currentIndex - 1 + state.playlist.length) % state.playlist.length;
+  playIndex(prev);
+}
+
+function handleTrackEnd() {
+  if (state.repeat === 'one') {
+    state.player.seekTo(0);
+    state.player.playVideo();
+  } else if (state.repeat === 'all' || state.currentIndex < state.playlist.length - 1) {
+    nextTrack();
+  } else {
+    state.isPlaying = false;
+    updatePlayButton();
+    document.getElementById('albumArt').classList.remove('playing');
+  }
+}
+
+function removeTrack(i) {
+  const wasCurrent = i === state.currentIndex;
+  state.playlist.splice(i, 1);
+  if (wasCurrent) {
+    state.player.stopVideo();
+    state.currentIndex = -1;
+    state.isPlaying = false;
+    updatePlayButton();
+    document.getElementById('trackTitle').textContent = '지금, 당신의 순간';
+    document.getElementById('trackArtist').textContent = '재생목록이 비었습니다';
+    document.getElementById('albumArt').innerHTML = '<div class="placeholder">♪</div>';
+    document.getElementById('bgBlur').style.backgroundImage = '';
+    state.lyrics = [];
+    renderLyrics();
+  } else if (i < state.currentIndex) {
+    state.currentIndex--;
+  }
+  savePlaylist();
+  renderPlaylist();
+}
+
+/* ========== 가사 (LRCLIB) ========== */
+async function loadLyrics(track) {
+  const status = document.getElementById('lyricsStatus');
+  state.lyrics = [];
+  state.currentLyricIdx = -1;
+  renderLyrics();
+  if (!track) return;
+  status.textContent = '가사 검색 중...';
+
+  // 제목에서 (Official MV, Lyrics 등) 제거
+  let title = track.title
+    .replace(/\s*[\(\[]?(official\s*(music\s*)?video|official\s*audio|lyrics?|mv|music\s*video|audio|hd|4k|visualizer)[\)\]]?\s*/gi, '')
+    .replace(/\s*[|–-]\s*.*$/, '')
+    .trim();
+  let artist = (track.artist || '')
+    .replace(/\s*[-–]\s*topic$/i, '')
+    .replace(/VEVO$/i, '')
+    .trim();
+
+  try {
+    const url = `https://lrclib.net/api/search?track_name=${encodeURIComponent(title)}&artist_name=${encodeURIComponent(artist)}`;
+    const res = await fetch(url);
+    if (!res.ok) throw new Error('API error');
+    const data = await res.json();
+    if (!data || data.length === 0) {
+      // 제목만으로도 재시도
+      const url2 = `https://lrclib.net/api/search?track_name=${encodeURIComponent(title)}`;
+      const res2 = await fetch(url2);
+      const data2 = await res2.json();
+      if (data2 && data2.length > 0) {
+        parseAndSetLyrics(data2[0]);
+        return;
+      }
+      status.textContent = '가사 없음';
+      renderLyrics();
+      return;
+    }
+    parseAndSetLyrics(data[0]);
+  } catch (e) {
+    console.warn(e);
+    status.textContent = '가사 로드 실패';
+  }
+}
+
+function parseAndSetLyrics(item) {
+  const status = document.getElementById('lyricsStatus');
+  let lines = [];
+  if (item.syncedLyrics) {
+    lines = parseLRC(item.syncedLyrics);
+    status.textContent = '싱크 가사';
+  } else if (item.plainLyrics) {
+    lines = item.plainLyrics.split('\n').filter(l => l.trim()).map(t => ({ time: 0, text: t }));
+    status.textContent = '가사 (비싱크)';
+  } else {
+    status.textContent = '가사 없음';
+  }
+  state.lyrics = lines;
+  renderLyrics();
+}
+
+function parseLRC(lrc) {
+  const lines = [];
+  const regex = /\[(\d{1,2}):(\d{2})(?:\.(\d{1,3}))?\](.*)/;
+  lrc.split('\n').forEach(raw => {
+    const m = raw.match(regex);
+    if (m) {
+      const min = parseInt(m[1]);
+      const sec = parseInt(m[2]);
+      const ms = m[3] ? parseInt(m[3].padEnd(3, '0')) : 0;
+      const time = min * 60 + sec + ms / 1000;
+      const text = m[4].trim();
+      if (text) lines.push({ time, text });
+    }
+  });
+  return lines.sort((a, b) => a.time - b.time);
+}
+
+function renderLyrics() {
+  const scroll = document.getElementById('lyricsScroll');
+  if (state.lyrics.length === 0) {
+    scroll.innerHTML = `<div class="lyrics-empty">
+      <div class="icon">🎵</div>
+      음악을 재생하면<br/>가사가 여기에 나타납니다
+    </div>`;
+    return;
+  }
+  scroll.innerHTML = state.lyrics.map((l, i) =>
+    `<div class="lyric-line" data-idx="${i}" data-time="${l.time}">${escapeHtml(l.text)}</div>`
+  ).join('');
+  scroll.querySelectorAll('.lyric-line').forEach(el => {
+    el.addEventListener('click', () => {
+      if (state.playerReady) {
+        state.player.seekTo(parseFloat(el.dataset.time), true);
+      }
+    });
+  });
+}
+
+function updateLyricsHighlight(currentTime) {
+  if (state.lyrics.length === 0) return;
+  let idx = -1;
+  for (let i = 0; i < state.lyrics.length; i++) {
+    if (state.lyrics[i].time <= currentTime) idx = i;
+    else break;
+  }
+  if (idx === state.currentLyricIdx) return;
+  state.currentLyricIdx = idx;
+  const scroll = document.getElementById('lyricsScroll');
+  const lines = scroll.querySelectorAll('.lyric-line');
+  lines.forEach((el, i) => {
+    el.classList.remove('active', 'past');
+    if (i === idx) {
+      el.classList.add('active');
+      // 스크롤 중앙 정렬
+      const top = el.offsetTop - scroll.clientHeight / 2 + el.clientHeight / 2;
+      scroll.scrollTo({ top, behavior: 'smooth' });
+    } else if (i < idx) {
+      el.classList.add('past');
+    }
+  });
+}
+
+/* ========== 진행바 & 비트 감지 ========== */
+function startProgressTimer() {
+  stopProgressTimer();
+  state.progressTimer = setInterval(() => {
+    if (!state.playerReady) return;
+    const cur = state.player.getCurrentTime() || 0;
+    const dur = state.player.getDuration() || 0;
+    document.getElementById('currentTime').textContent = formatTime(cur);
+    document.getElementById('duration').textContent = formatTime(dur);
+    if (dur > 0) {
+      document.getElementById('progressFill').style.width = (cur / dur * 100) + '%';
+    }
+    // 비트 강도 추정 (진행 변화량)
+    const delta = cur - state.lastProgress;
+    state.lastProgress = cur;
+    // 변화가 일정하면.isPlaying 중. 간단한 휴리스틱으로 강도 업데이트
+    const target = state.isPlaying ? 0.4 + Math.random() * 0.3 : 0;
+    state.beatIntensity += (target - state.beatIntensity) * 0.1;
+
+    updateLyricsHighlight(cur);
+  }, 250);
+}
+function stopProgressTimer() {
+  if (state.progressTimer) clearInterval(state.progressTimer);
+}
+
+/* ========== Canvas 분위기 이펙트 ========== */
+const canvas = document.getElementById('fxCanvas');
+const ctx = canvas.getContext('2d');
+let particles = [];
+let currentFxMood = 'calm';
+let animFrame;
+
+function resizeCanvas() {
+  canvas.width = window.innerWidth * devicePixelRatio;
+  canvas.height = window.innerHeight * devicePixelRatio;
+  canvas.style.width = window.innerWidth + 'px';
+  canvas.style.height = window.innerHeight + 'px';
+  ctx.scale(devicePixelRatio, devicePixelRatio);
+}
+window.addEventListener('resize', () => {
+  ctx.setTransform(1,0,0,1,0,0);
+  resizeCanvas();
+});
+resizeCanvas();
+
+function fxSwitchMood(mood) {
+  currentFxMood = mood;
+  particles = [];
+  const W = window.innerWidth, H = window.innerHeight;
+  const m = MOODS[mood] || MOODS.calm;
+
+  if (mood === 'calm') {
+    for (let i = 0; i < 40; i++) {
+      particles.push({
+        type: 'bokeh',
+        x: Math.random() * W, y: Math.random() * H,
+        r: 20 + Math.random() * 60,
+        vx: (Math.random() - 0.5) * 0.2,
+        vy: -0.1 - Math.random() * 0.2,
+        alpha: 0.1 + Math.random() * 0.2,
+        color: Math.random() < 0.5 ? m.color1 : m.color2,
+      });
+    }
+  } else if (mood === 'energetic') {
+    for (let i = 0; i < 80; i++) {
+      particles.push({
+        type: 'spark',
+        x: Math.random() * W, y: Math.random() * H,
+        vx: (Math.random() - 0.5) * 3,
+        vy: (Math.random() - 0.5) * 3,
+        r: 1 + Math.random() * 2,
+        life: Math.random(),
+        color: Math.random() < 0.5 ? m.color1 : m.color2,
+      });
+    }
+  } else if (mood === 'sad') {
+    for (let i = 0; i < 120; i++) {
+      particles.push({
+        type: 'rain',
+        x: Math.random() * W,
+        y: Math.random() * H,
+        len: 10 + Math.random() * 20,
+        speed: 4 + Math.random() * 6,
+        alpha: 0.15 + Math.random() * 0.25,
+      });
+    }
+  } else if (mood === 'romantic') {
+    for (let i = 0; i < 30; i++) {
+      particles.push({
+        type: 'heart',
+        x: Math.random() * W, y: H + Math.random() * 100,
+        vy: -0.3 - Math.random() * 0.5,
+        vx: (Math.random() - 0.5) * 0.5,
+        size: 8 + Math.random() * 16,
+        alpha: 0.3 + Math.random() * 0.4,
+        rot: Math.random() * Math.PI * 2,
+        vr: (Math.random() - 0.5) * 0.02,
+        color: Math.random() < 0.7 ? m.color1 : m.color2,
+      });
+    }
+  } else if (mood === 'dreamy') {
+    for (let i = 0; i < 60; i++) {
+      particles.push({
+        type: 'mist',
+        x: Math.random() * W, y: Math.random() * H,
+        r: 40 + Math.random() * 100,
+        vx: (Math.random() - 0.5) * 0.3,
+        vy: (Math.random() - 0.5) * 0.3,
+        alpha: 0.05 + Math.random() * 0.1,
+        color: Math.random() < 0.5 ? m.color1 : m.color2,
+        phase: Math.random() * Math.PI * 2,
+      });
+    }
+  } else if (mood === 'retro') {
+    for (let i = 0; i < 50; i++) {
+      particles.push({
+        type: 'grid',
+        x: Math.random() * W, y: H * 0.5 + Math.random() * H * 0.5,
+        vx: 0, vy: -1 - Math.random() * 2,
+        size: 2 + Math.random() * 3,
+        alpha: 0.5 + Math.random() * 0.5,
+        color: m.color1,
+      });
+    }
+  }
+}
+
+function drawHeart(cx, cy, size, color, alpha) {
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  ctx.fillStyle = color;
+  ctx.beginPath();
+  const s = size;
+  ctx.moveTo(cx, cy + s * 0.3);
+  ctx.bezierCurveTo(cx, cy, cx - s, cy, cx - s, cy + s * 0.5);
+  ctx.bezierCurveTo(cx - s, cy + s, cx, cy + s * 1.2, cx, cy + s * 1.4);
+  ctx.bezierCurveTo(cx, cy + s * 1.2, cx + s, cy + s, cx + s, cy + s * 0.5);
+  ctx.bezierCurveTo(cx + s, cy, cx, cy, cx, cy + s * 0.3);
+  ctx.fill();
+  ctx.restore();
+}
+
+function fxLoop() {
+  const W = window.innerWidth, H = window.innerHeight;
+  ctx.clearRect(0, 0, W, H);
+  const intensity = 0.5 + state.beatIntensity * 1.2;
+
+  for (const p of particles) {
+    if (p.type === 'bokeh') {
+      p.x += p.vx; p.y += p.vy;
+      if (p.y < -p.r) { p.y = H + p.r; p.x = Math.random() * W; }
+      if (p.x < -p.r) p.x = W + p.r;
+      if (p.x > W + p.r) p.x = -p.r;
+      const grad = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, p.r);
+      grad.addColorStop(0, p.color + 'aa');
+      grad.addColorStop(1, p.color + '00');
+      ctx.fillStyle = grad;
+      ctx.globalAlpha = p.alpha * intensity;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+      ctx.fill();
+    } else if (p.type === 'spark') {
+      p.x += p.vx * intensity;
+      p.y += p.vy * intensity;
+      p.life -= 0.005;
+      if (p.life <= 0 || p.x < 0 || p.x > W || p.y < 0 || p.y > H) {
+        p.x = W / 2 + (Math.random() - 0.5) * 200;
+        p.y = H / 2 + (Math.random() - 0.5) * 200;
+        p.vx = (Math.random() - 0.5) * 4;
+        p.vy = (Math.random() - 0.5) * 4;
+        p.life = 1;
+      }
+      ctx.globalAlpha = p.life * 0.8;
+      ctx.fillStyle = p.color;
+      ctx.shadowBlur = 10;
+      ctx.shadowColor = p.color;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.shadowBlur = 0;
+    } else if (p.type === 'rain') {
+      p.y += p.speed * intensity;
+      if (p.y > H) { p.y = -p.len; p.x = Math.random() * W; }
+      ctx.globalAlpha = p.alpha;
+      ctx.strokeStyle = '#a8c5e8';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(p.x, p.y);
+      ctx.lineTo(p.x - 1, p.y + p.len);
+      ctx.stroke();
+    } else if (p.type === 'heart') {
+      p.x += p.vx;
+      p.y += p.vy * intensity;
+      p.rot += p.vr;
+      if (p.y < -30) {
+        p.y = H + 30;
+        p.x = Math.random() * W;
+      }
+      ctx.save();
+      ctx.translate(p.x, p.y);
+      ctx.rotate(p.rot);
+      drawHeart(0, 0, p.size, p.color, p.alpha * intensity);
+      ctx.restore();
+    } else if (p.type === 'mist') {
+      p.phase += 0.005;
+      p.x += p.vx + Math.sin(p.phase) * 0.2;
+      p.y += p.vy + Math.cos(p.phase) * 0.2;
+      if (p.x < -p.r) p.x = W + p.r;
+      if (p.x > W + p.r) p.x = -p.r;
+      if (p.y < -p.r) p.y = H + p.r;
+      if (p.y > H + p.r) p.y = -p.r;
+      const grad = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, p.r);
+      grad.addColorStop(0, p.color + '88');
+      grad.addColorStop(1, p.color + '00');
+      ctx.fillStyle = grad;
+      ctx.globalAlpha = p.alpha * intensity;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+      ctx.fill();
+    } else if (p.type === 'grid') {
+      p.y += p.vy * intensity;
+      if (p.y < H * 0.4) {
+        p.y = H;
+        p.x = Math.random() * W;
+      }
+      ctx.globalAlpha = p.alpha;
+      ctx.fillStyle = p.color;
+      ctx.shadowBlur = 8;
+      ctx.shadowColor = p.color;
+      ctx.fillRect(p.x, p.y, p.size, p.size);
+      ctx.shadowBlur = 0;
+    }
+  }
+  ctx.globalAlpha = 1;
+  animFrame = requestAnimationFrame(fxLoop);
+}
+fxLoop();
+
+/* ========== 검색 & 추가 ========== */
+async function handleInput() {
+  const input = document.getElementById('searchInput').value.trim();
+  if (!input) return;
+  const videoId = extractVideoId(input);
+  if (videoId) {
+    await addTrackById(videoId);
+    document.getElementById('searchInput').value = '';
+    return;
+  }
+  if (!state.apiKey) {
+    alert('검색 기능을 사용하려면 설정(⚙)에서 YouTube Data API 키를 입력해주세요.\n\nURL을 직접 입력하면 키 없이도 재생 가능합니다.');
+    document.getElementById('settingsModal').classList.add('show');
+    return;
+  }
+  await searchAndAdd(input);
+  document.getElementById('searchInput').value = '';
+}
+
+async function addTrackById(videoId) {
+  const existing = state.playlist.findIndex(t => t.videoId === videoId);
+  if (existing >= 0) { playIndex(existing); return; }
+  let title = 'YouTube Video';
+  let artist = '';
+  let thumb = `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`;
+  if (state.apiKey) {
+    try {
+      const res = await fetch(`https://www.googleapis.com/youtube/v3/videos?part=snippet&id=${videoId}&key=${state.apiKey}`);
+      const data = await res.json();
+      if (data.items && data.items[0]) {
+        const sn = data.items[0].snippet;
+        title = sn.title;
+        artist = sn.channelTitle;
+        thumb = sn.thumbnails.high?.url || sn.thumbnails.default?.url || thumb;
+      }
+    } catch (e) { console.warn(e); }
+  }
+  const mood = detectMood(title, artist);
+  const track = { videoId, title, artist, thumb, mood };
+  state.playlist.push(track);
+  savePlaylist();
+  renderPlaylist();
+  playIndex(state.playlist.length - 1);
+}
+
+async function searchAndAdd(query) {
+  try {
+    const res = await fetch(`https://www.googleapis.com/youtube/v3/search?part=snippet&type=video&maxResults=10&q=${encodeURIComponent(query)}&key=${state.apiKey}`);
+    const data = await res.json();
+    if (!data.items || data.items.length === 0) { alert('검색 결과가 없습니다.'); return; }
+    for (const item of data.items) {
+      const videoId = item.id.videoId;
+      if (state.playlist.some(t => t.videoId === videoId)) continue;
+      const title = item.snippet.title;
+      const artist = item.snippet.channelTitle;
+      state.playlist.push({
+        videoId, title, artist,
+        thumb: item.snippet.thumbnails.high?.url || item.snippet.thumbnails.default?.url,
+        mood: detectMood(title, artist),
+      });
+    }
+    savePlaylist();
+    renderPlaylist();
+    const idx = state.playlist.findIndex(t => t.videoId === data.items[0].id.videoId);
+    if (idx >= 0) playIndex(idx);
+  } catch (e) {
+    alert('검색 중 오류가 발생했습니다: ' + e.message);
+  }
+}
+
+/* ========== 이벤트 바인딩 ========== */
+document.getElementById('searchBtn').addEventListener('click', handleInput);
+document.getElementById('searchInput').addEventListener('keydown', e => {
+  if (e.key === 'Enter') handleInput();
+});
+document.getElementById('playBtn').addEventListener('click', togglePlay);
+document.getElementById('nextBtn').addEventListener('click', nextTrack);
+document.getElementById('prevBtn').addEventListener('click', prevTrack);
+document.getElementById('shuffleBtn').addEventListener('click', (e) => {
+  state.shuffle = !state.shuffle;
+  e.currentTarget.classList.toggle('active', state.shuffle);
+});
+document.getElementById('repeatBtn').addEventListener('click', (e) => {
+  state.repeat = state.repeat === 'off' ? 'all' : state.repeat === 'all' ? 'one' : 'off';
+  e.currentTarget.classList.toggle('active', state.repeat !== 'off');
+  e.currentTarget.textContent = state.repeat === 'one' ? '↻¹' : '↻';
+});
+document.getElementById('volume').addEventListener('input', (e) => {
+  if (state.playerReady) state.player.setVolume(parseInt(e.target.value));
+});
+document.getElementById('progressBar').addEventListener('click', (e) => {
+  if (!state.playerReady) return;
+  const rect = e.currentTarget.getBoundingClientRect();
+  const ratio = (e.clientX - rect.left) / rect.width;
+  const dur = state.player.getDuration();
+  if (dur > 0) state.player.seekTo(ratio * dur, true);
+});
+
+// 분위기 칩
+document.querySelectorAll('.mood-chip').forEach(chip => {
+  chip.addEventListener('click', () => {
+    state.currentMood = chip.dataset.mood;
+    applyMood(getActiveMood());
+    document.querySelectorAll('.mood-chip').forEach(c => c.classList.toggle('active', c === chip));
+  });
+});
+
+// 설정 모달
+document.getElementById('settingsBtn').addEventListener('click', () => {
+  document.getElementById('apiKeyInput').value = state.apiKey;
+  document.getElementById('settingsModal').classList.add('show');
+});
+document.getElementById('closeModal').addEventListener('click', () => {
+  document.getElementById('settingsModal').classList.remove('show');
+});
+document.getElementById('saveKey').addEventListener('click', () => {
+  state.apiKey = document.getElementById('apiKeyInput').value.trim();
+  localStorage.setItem('mood_api_key', state.apiKey);
+  document.getElementById('settingsModal').classList.remove('show');
+});
+document.getElementById('settingsModal').addEventListener('click', (e) => {
+  if (e.target.id === 'settingsModal') e.currentTarget.classList.remove('show');
+});
+
+// 키보드 단축키
+document.addEventListener('keydown', (e) => {
+  if (e.target.tagName === 'INPUT') return;
+  if (e.code === 'Space') { e.preventDefault(); togglePlay(); }
+  if (e.code === 'ArrowRight' && e.ctrlKey) nextTrack();
+  if (e.code === 'ArrowLeft' && e.ctrlKey) prevTrack();
+  if (e.code === 'KeyL') {
+    document.querySelector('.lyrics-panel').scrollIntoView({ behavior: 'smooth' });
+  }
+});
+
+// 초기화
+renderPlaylist();
+applyMood('calm');
+</script>
+</body>
+</html>
