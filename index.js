@@ -76,9 +76,17 @@ async function tryLocoLogin() {
       password: config.PASSWORD,
       forced: true,
     });
-    if (!loginRes.success) {
-      console.error("[둘기봇] 로그인 패", loginRes.status);
-      return false;
+    
+if (!loginRes.success) {
+  console.error("[둘기봇] 로그인 실패");
+  console.error("[둘기봇] 상태 코드:", loginRes.status);
+  console.error(
+    "[둘기봇] 응답 필드:",
+    Object.keys(loginRes || {})
+  );
+  return false;
+}
+
     }
     talkClient = new TalkClient();
     const res = await talkClient.login(loginRes.result);
