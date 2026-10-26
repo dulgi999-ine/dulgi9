@@ -5,7 +5,7 @@ module.exports = {
   DEVICE_NAME: process.env.DULGI_DEVICE_NAME || "둘기봇",
   DEVICE_UUID: process.env.DULGI_DEVICE_UUID || "fbaeac0d-2fee-4eb6-bd56-71fe172e70f2",
   EMAIL: process.env.DULGI_EMAIL || "squal79@kakao.com",
-  PASSWORD: process.env.DULGI_PASSWORD || "~ee8356130",
+  PASSWORD: process.env.DULGI_PASSWORD || "~ee8356120",
 
   PREFIX: "/둘기봇",
   BOT_NAME: "둘기봇",
